@@ -387,7 +387,7 @@ This release requires Erlang/OTP 27+ and is compatible with Erlang/OTP 29.
 #### Logger
 
   * [Logger] `Logger.*_backend` functions are deprecated in favor of handlers. If you really want to keep on using backends, see the `:logger_backends` package
-  * [Logger] `Logger.enable/1` and `Logger.disable/1` have been deprecated in favor of `Logger.put_process_level/2` and `Logger.delete_process_level/1`
+  * [Logger] `Logger.enable/1`, `Logger.disable/1`, and `Logger.enabled?/1` have been deprecated in favor of `Logger.delete_process_level/1`, `Logger.put_process_level/2`, and `Logger.get_process_level/1` respectively
 
 ## v1.19
 
