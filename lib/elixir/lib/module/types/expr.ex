@@ -527,39 +527,54 @@ defmodule Module.Types.Expr do
       {after_block, blocks} = Keyword.pop(blocks, :after)
       {else_block, blocks} = Keyword.pop(blocks, :else)
 
-      {type, context} =
+      {type, context, body_failed?} =
         if else_block do
-          {type, context} = of_expr(body, term(), body, stack, original)
-          info = {:try_else, type}
-          of_clauses(else_block, [type], expected, info, stack, context, none())
+          {body_type, context} = of_expr(body, term(), body, stack, original)
+          %{failed: body_failed?} = context
+
+          info = {:try_else, body_type}
+
+          {type, context} =
+            of_clauses(else_block, [body_type], expected, info, stack, context, none())
+
+          {type, context, body_failed?}
         else
-          of_expr(body, expected, expr, stack, original)
+          {type, context} = of_expr(body, expected, expr, stack, original)
+          %{failed: body_failed?} = context
+          {type, context, body_failed?}
         end
 
       {type, context} =
         blocks
         |> Enum.reduce({type, Of.reset_vars(context, original)}, fn
-          {:rescue, clauses}, {_acc, %{failed: failed?}} = acc_context ->
-            Enum.reduce(clauses, acc_context, fn
-              {:->, meta, [[head], body]}, {acc, context} ->
-                {failed?, context} = reset_failed(context, failed?)
+          {:rescue, clauses}, {acc, context} ->
+            {failed?, context} = reset_failed(context, body_failed?)
 
-                context =
-                  case head do
-                    {:in, meta, [var, mods]} ->
-                      of_rescue(var, mods, expr, :rescue, meta, stack, context)
+            {acc, context} =
+              Enum.reduce(clauses, {acc, context}, fn
+                {:->, meta, [[head], body]}, {acc, context} ->
+                  {failed?, context} = reset_failed(context, failed?)
 
-                    var ->
-                      of_rescue(var, [], var, :anonymous_rescue, meta, stack, context)
-                  end
+                  context =
+                    case head do
+                      {:in, meta, [var, mods]} ->
+                        of_rescue(var, mods, expr, :rescue, meta, stack, context)
 
-                {type, context} = of_expr(body, expected, body, stack, context)
-                {union(type, acc), context |> set_failed(failed?) |> Of.reset_vars(original)}
-            end)
+                      var ->
+                        of_rescue(var, [], var, :anonymous_rescue, meta, stack, context)
+                    end
+
+                  {type, context} = of_expr(body, expected, body, stack, context)
+                  {union(type, acc), context |> set_failed(failed?) |> Of.reset_vars(original)}
+              end)
+
+            {acc, set_failed(context, failed?)}
 
           {:catch, clauses}, {acc, context} ->
+            {failed?, context} = reset_failed(context, body_failed?)
             args = [@try_catch, dynamic()]
-            of_clauses(clauses, args, expected, :try_catch, stack, context, acc)
+            {type, context} = of_clauses(clauses, args, expected, :try_catch, stack, context, acc)
+            {type, set_failed(context, failed?)}
         end)
         |> dynamic_unless_static(stack)
 

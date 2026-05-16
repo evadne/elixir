@@ -2702,6 +2702,32 @@ defmodule Module.Types.ExprTest do
                )
     end
 
+    test "collects diagnostics across handler blocks" do
+      assert {_, [_, _]} =
+               typediag!(
+                 try do
+                   :ok
+                 rescue
+                   _ in RuntimeError -> String.length(1)
+                 catch
+                   :throw, :x -> Integer.to_string(:atom)
+                 end
+               )
+
+      assert {_, [_, _, _]} =
+               typediag!(
+                 try do
+                   :ok
+                 rescue
+                   _ in RuntimeError -> String.length(1)
+                 catch
+                   :throw, :x -> Integer.to_string(:atom)
+                 else
+                   :ok -> Atom.to_string(123)
+                 end
+               )
+    end
+
     test "rescue: errors on undefined exceptions" do
       assert typeerror!(
                try do
