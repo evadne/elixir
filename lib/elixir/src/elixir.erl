@@ -461,7 +461,7 @@ string_to_tokens(String, StartLine, StartColumn, File, Opts) when is_integer(Sta
   end.
 
 tokens_to_quoted(Tokens, _WarningFile, Opts) ->
-  put_parsing_state(Opts),
+  OldState = put_parsing_state(Opts),
 
   try elixir_parser:parse(Tokens) of
     {ok, Forms} ->
@@ -471,10 +471,7 @@ tokens_to_quoted(Tokens, _WarningFile, Opts) ->
     {error, {Line, _, [Error, Token]}} ->
       {error, {parser_location(Line), to_binary(Error), to_binary(Token)}}
   after
-    erase(elixir_parser_warnings),
-    erase(elixir_parser_columns),
-    erase(elixir_token_metadata),
-    erase(elixir_literal_encoder)
+    restore_parsing_state(OldState)
   end.
 
 emit_warnings(Warnings, File, Opts) ->
@@ -535,7 +532,16 @@ put_parsing_state(Opts) ->
     end,
   TokenMetadata = lists:keyfind(token_metadata, 1, Opts) == {token_metadata, true},
   Columns = lists:keyfind(columns, 1, Opts) == {columns, true},
-  put(elixir_parser_warnings, []),
-  put(elixir_parser_columns, Columns),
-  put(elixir_token_metadata, TokenMetadata),
-  put(elixir_literal_encoder, LiteralEncoder).
+  {put(elixir_parser_warnings, []),
+   put(elixir_parser_columns, Columns),
+   put(elixir_token_metadata, TokenMetadata),
+   put(elixir_literal_encoder, LiteralEncoder)}.
+
+restore_parsing_state({Warnings, Columns, TokenMetadata, LiteralEncoder}) ->
+  restore_parser_key(elixir_parser_warnings, Warnings),
+  restore_parser_key(elixir_parser_columns, Columns),
+  restore_parser_key(elixir_token_metadata, TokenMetadata),
+  restore_parser_key(elixir_literal_encoder, LiteralEncoder).
+
+restore_parser_key(Key, undefined) -> erase(Key);
+restore_parser_key(Key, Value) -> put(Key, Value).

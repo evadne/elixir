@@ -967,6 +967,26 @@ defmodule Kernel.ParserTest do
                {:__block__, [parens: [closing: [line: 1], line: 1], token: "1", line: 1], [1]}
     end
 
+    test "restores parser state after reentrant :literal_encoder" do
+      encoder = fn literal, meta ->
+        _ = Code.string_to_quoted!(":nested")
+        {:ok, {:wrapped, meta, [literal]}}
+      end
+
+      assert Code.string_to_quoted!("[1, 2]",
+               literal_encoder: encoder,
+               token_metadata: true,
+               columns: true
+             ) ==
+               {:wrapped, [closing: [line: 1, column: 6], line: 1, column: 1],
+                [
+                  [
+                    {:wrapped, [token: "1", line: 1, column: 2], [1]},
+                    {:wrapped, [token: "2", line: 1, column: 5], [2]}
+                  ]
+                ]}
+    end
+
     test "adds identifier_location for qualified identifiers" do
       string_to_quoted = &Code.string_to_quoted!(&1, token_metadata: true, columns: true)
 
